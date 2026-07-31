@@ -1,0 +1,12 @@
+# Binarios compilados (no versionar)
+vamp_shell_lab
+vamp_msg
+vamp_msg.o
+*.o
+
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
