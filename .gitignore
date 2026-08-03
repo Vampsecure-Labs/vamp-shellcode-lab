@@ -1,12 +1,12 @@
-# Binarios compilados (no versionar)
-vamp_shell_lab
-vamp_msg
-vamp_msg.o
+# Compilados C/ASM
 *.o
+*.out
+*.bin
 
-# macOS
+# Editores y sistema operativo
 .DS_Store
-
-# IDEs
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
