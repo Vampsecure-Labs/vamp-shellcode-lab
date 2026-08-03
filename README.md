@@ -1,70 +1,84 @@
-# vamp-shellcode-lab
+<h1 align="center">vamp-shellcode-lab</h1>
+<p align="center">
+  <strong>Educational ARM64 shellcode execution lab demonstrating mmap RWX, inline ASM, and direct Linux syscalls</strong><br>
+  <em>VampSecure Labs · Security Research Division</em>
+</p>
 
-**VampSecure Labs — Security Research Division**  
-Laboratorio de shellcode ARM64: mmap RWX, syscalls directas y ejecución de código nativo.
+<p align="center">
+  <img src="https://img.shields.io/badge/language-C-blue?style=flat-square&logo=c">
+  <img src="https://img.shields.io/badge/architecture-ARM64%20%7C%20AArch64-lightgrey?style=flat-square">
+  <img src="https://img.shields.io/badge/platform-linux--arm64-lightgrey?style=flat-square">
+  <img src="https://img.shields.io/badge/license-research%20only-red?style=flat-square">
+  <img src="https://img.shields.io/badge/VampSecure-Labs-8B0000?style=flat-square">
+</p>
 
 ---
 
-## Descripción
+## Overview
 
-Laboratorio educativo de bajo nivel para entornos Linux ARM64 (AArch64). Demuestra los
-conceptos fundamentales sobre los que se construyen técnicas de explotación de memoria:
+`vamp-shellcode-lab` is an educational shellcode execution laboratory targeting the ARM64 (AArch64) architecture on Linux. It demonstrates the core primitives behind shellcode development and exploitation research through two self-contained demos: inline GNU assembler embedded directly in C, and a pre-calculated shellcode byte array executed from an `mmap`-allocated RWX memory region. Both paths perform direct Linux kernel syscalls without libc, illustrating how exploit payloads communicate with the kernel at the lowest level.
 
-1. **mmap con permisos RWX** — región de memoria que se puede leer, escribir Y ejecutar
-2. **Ensamblador inline en C** — instrucciones ARM64 directas mediante `__asm__`
-3. **Syscalls directas al kernel** — sin libc, acceso directo a la ABI de Linux ARM64
-4. **Shellcode como bytes** — array C que se copia a memoria ejecutable y se invoca
+The repository includes `vamp_msg.s` — a pure assembly reference showing the same payload in readable AArch64 assembler syntax, annotated with a quick-reference table of ARM64 Linux syscall numbers and the full AArch64 calling convention.
 
-No es una herramienta ofensiva: el shellcode de demostración únicamente escribe "VAMP" en
-stdout y termina. El objetivo es entender los mecanismos, no proporcionar exploits listos.
+**Intended audience**: security researchers, reverse engineers, and students studying exploitation techniques, memory protection mechanisms (NX/W^X/PXN), and ARM64 assembly. All content is strictly educational — the shellcode payload does nothing beyond printing a five-byte string and calling `exit(0)`.
 
-## Plataformas compatibles
+## Features
 
-| Plataforma | Compatible |
-|------------|------------|
-| Linux ARM64 (Raspberry Pi 4/5) | ✓ |
-| Linux ARM64 (AWS Graviton, Oracle Ampere) | ✓ |
-| macOS Apple Silicon (Docker Linux ARM64) | ✓ |
-| macOS Apple Silicon (nativo) | ✗ — diferente ABI y kernel |
-| Linux x86/x86_64 | ✗ — instrucciones ARM64 no ejecutables |
+- **Demo 1 — Inline ASM** (`demo_asm_inline`): uses `__asm__ volatile` to execute ARM64 instructions directly within C; the compiler resolves label offsets automatically, eliminating manual offset arithmetic
+- **Demo 2 — Shellcode as bytes** (`demo_shellcode_bytes`): copies a pre-calculated byte array to a region obtained via `mmap(PROT_READ | PROT_WRITE | PROT_EXEC)` and invokes it as a function pointer — the canonical shellcode injection technique
+- **Annotated shellcode** for `write(1, "VAMP\n", 5)` + `exit(0)` via ARM64 syscalls 64 and 93; each byte in the array is commented against the originating instruction
+- **Pure ASM reference** (`vamp_msg.s`): the same payload in readable AArch64 assembler syntax, compilable with `as` + `ld` for independent byte extraction via `objdump`
+- **ARM64 syscall table** in `vamp_msg.s`: `write`, `read`, `exit`, `exit_group`, `execve`, `execveat`, `mmap`, `munmap` with argument registers
+- **AArch64 calling convention notes**: x0–x7 arguments, x8 syscall number, x19–x28 callee-save, x29 frame pointer, x30 link register, sp stack pointer
+- **Defensive context**: in-code notes on how `ptrace`, `seccomp`, `/proc/PID/maps`, `auditd`, `eBPF`, and `checksec` can detect each technique
+- **Makefile** with three targets: `make` (main lab), `make asm` (pure ASM reference), `make clean`
+- Compatible with Linux ARM64: Raspberry Pi 4/5, AWS Graviton, Oracle Cloud Ampere, and Docker Linux ARM64 on Apple Silicon
 
-## Contenido
+## Requirements
 
-| Fichero | Descripción |
-|---------|-------------|
-| `vamp_shell_lab.c` | Programa principal con dos demos (inline ASM + shellcode bytes) |
-| `vamp_msg.s` | Referencia del shellcode en ensamblador puro (para estudio) |
-| `Makefile` | Compilación simplificada |
+- GCC cross-compiler or native ARM64 Linux toolchain
+- `binutils` (`as`, `ld`) for the `make asm` target
+- Linux ARM64 environment (native or `docker run --platform linux/arm64`)
 
-## Compilación
+No Python runtime. No external libraries.
+
+## Installation
 
 ```bash
-# En Linux ARM64
+git clone https://github.com/belky-me/vamp-shellcode-lab.git
+cd vamp-shellcode-lab
+```
+
+**Build the main lab (requires Linux ARM64):**
+```bash
 make
+```
 
-# Compilar también la referencia ASM pura
+**Build the pure ASM reference binary:**
+```bash
 make asm
+```
 
-# Limpiar binarios
+**Clean compiled artifacts:**
+```bash
 make clean
 ```
 
-Equivalente manual:
-```bash
-# Laboratorio principal
-gcc -o vamp_shell_lab vamp_shell_lab.c -z execstack
+### Compilation Details
 
-# Referencia ASM (ensamblador + linker)
-as -o vamp_msg.o vamp_msg.s && ld -o vamp_msg vamp_msg.o
+```bash
+gcc -Wall -Wextra -z execstack -o vamp_shell_lab vamp_shell_lab.c
 ```
 
-## Ejecución
+The `-z execstack` linker flag disables the NX stack protection that production linkers apply by default. It is required here for Demo 1 (inline ASM references a `.ascii` label in the `.text` section). It must never appear in production builds. Demo 2 uses a heap-allocated `mmap` region and would not strictly require it, but it is included for consistency across GCC/kernel variants.
+
+## Usage
 
 ```bash
 ./vamp_shell_lab
 ```
 
-Salida esperada:
+Expected output:
 ```
 ╔══════════════════════════════════════════════════════╗
 ║   VampSecure Labs — Shell Lab v2.0 (ARM64)          ║
@@ -75,81 +89,58 @@ Arquitectura objetivo : ARM64 (AArch64) Linux
 Protecciones activas  : NX desactivado por -z execstack (SOLO LAB)
 
 [DEMO 1] Ensamblador inline — instrucciones ARM64 directas en C
-─────────────────────────────────────────────────────────────────
 [*] Ejecutando syscall write via __asm__...
 [*] Salida del shellcode: VAMP
 [✓] Syscall completada correctamente.
 
 [DEMO 2] Shellcode como array de bytes — técnica base de inyección
-─────────────────────────────────────────────────────────────────
-[*] Región RWX asignada en: 0x7f8a3c0000 (37 bytes)
+[*] Región RWX asignada en: 0x7f... (37 bytes)
 [*] Copiando 37 bytes de shellcode...
 [*] Salida del shellcode: VAMP
 ```
 
-## Conceptos explicados
+### Extracting Byte Values from the ASM Reference
 
-### mmap RWX
+```bash
+# Assemble and link
+as -o vamp_msg.o vamp_msg.s && ld -o vamp_msg vamp_msg.o
 
-```c
-void *mem = mmap(NULL, 1024,
-    PROT_READ | PROT_WRITE | PROT_EXEC,
-    MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+# Verify output
+./vamp_msg
+
+# Extract hex bytes for hardcoding in C
+objdump -d vamp_msg.o | grep -A 999 "<.text>"
 ```
 
-`PROT_EXEC` permite ejecutar el contenido de la región como código máquina. En sistemas
-con W^X (Write XOR Execute) habilitado a nivel hardware (ARM: PXN/UXN, x86: NX/XD),
-esta combinación de RWX es bloqueada por la CPU en modo usuario.
+## ARM64 Syscall Reference (from vamp_msg.s)
 
-### Syscalls ARM64 directas
+| Number | Name | Prototype |
+|--------|------|-----------|
+| 64 | write | `write(fd, buf, count)` → x0, x1, x2 |
+| 63 | read | `read(fd, buf, count)` → x0, x1, x2 |
+| 93 | exit | `exit(status)` → x0 |
+| 94 | exit_group | `exit_group(status)` → x0 |
+| 221 | execve | `execve(path, argv, envp)` → x0, x1, x2 |
+| 192 | mmap | `mmap(addr, len, prot, flags, fd, off)` → x0–x5 |
+| 215 | munmap | `munmap(addr, len)` → x0, x1 |
 
-```asm
-mov x0, #1       // fd = stdout
-adr x1, msg      // puntero al string
-mov x2, #5       // longitud
-mov x8, #64      // número de syscall write en Linux ARM64
-svc #0           // supervisor call → trampa al kernel
-```
+## Platform Compatibility
 
-`svc #0` es la instrucción de trampa que transfiere el control al kernel con la syscall
-identificada por el número en `x8`. No interviene libc ni ninguna capa de abstracción.
+| Environment | Status |
+|------------|--------|
+| Linux ARM64 (native) | Fully supported |
+| Docker Linux ARM64 on Apple Silicon | Supported (`--platform linux/arm64`) |
+| macOS Apple Silicon (native) | Not supported — different syscall ABI (XNU) |
+| Linux x86_64 | Not supported — ARM64 instruction set only |
 
-### Tabla de syscalls ARM64 de referencia
+## Part of VampSecure Labs Toolkit
 
-| Número | Nombre | Argumentos |
-|--------|--------|------------|
-| 64 | write | fd, buf, count |
-| 63 | read | fd, buf, count |
-| 93 | exit | status |
-| 94 | exit_group | status |
-| 221 | execve | path, argv, envp |
-| 192 | mmap | addr, len, prot, flags, fd, offset |
+This tool is part of the **VampSecure Labs Security Toolkit** — a collection of research-grade security tools for authorized penetration testing and red/blue team exercises.
 
-### Por qué -z execstack
-
-El linker GNU aplica por defecto protección `NX` (No-eXecute) a la pila. La opción
-`-z execstack` la desactiva, lo que es necesario cuando el código ensamblador inline
-queda en la sección de texto pero hace referencia a datos en la pila. En la Demo 2 no
-sería estrictamente necesaria porque el shellcode está en heap (mmap), pero se incluye
-para que los dos ejemplos funcionen correctamente en todas las variantes de GCC/kernel.
-
-## Contexto de defensa: cómo detectar esta técnica
-
-| Técnica | Detección |
-|---------|-----------|
-| mmap RWX | `ptrace`, `seccomp`, `/proc/PID/maps` con `rwxp` |
-| Syscalls directas | auditoría de syscalls con `auditd` o `eBPF` |
-| Segmentos ejecutables | `checksec --file=binario` (detecta `NX disabled`) |
-| Shellcode en heap | análisis dinámico con Frida, GDB, ASAN |
-
-## Aviso legal
-
-**Uso exclusivo en entornos de laboratorio propios o con autorización escrita.**  
-Los conceptos demostrados son la base de técnicas de explotación reales. Su aplicación
-en sistemas sin autorización constituye un delito. VampSecure Studios no se responsabiliza
-del uso indebido de este laboratorio.
+- Full toolkit: [github.com/belky-me](https://github.com/belky-me)
+- Orchestrator: [github.com/belky-me/vamp-orchestrator](https://github.com/belky-me/vamp-orchestrator)
 
 ---
 
 © VampSecure Studios — VampSecure Labs Security Research Division  
-Licencia: MIT
+For authorized security testing only.
