@@ -1,3 +1,4 @@
+<!-- © VampSecure Studios — VampSecure Labs Security Research Division -->
 <h1 align="center">vamp-shellcode-lab</h1>
 <p align="center">
   <strong>Educational ARM64 shellcode execution lab demonstrating mmap RWX, inline ASM, and direct Linux syscalls</strong><br>
@@ -144,3 +145,6 @@ This tool is part of the **VampSecure Labs Security Toolkit** — a collection o
 
 © VampSecure Studios — VampSecure Labs Security Research Division  
 For authorized security testing only.
+
+## Versión
+Herramienta de investigación — VampSecure Labs Security Research Division
