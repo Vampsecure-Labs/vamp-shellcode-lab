@@ -134,6 +134,84 @@ objdump -d vamp_msg.o | grep -A 999 "<.text>"
 | macOS Apple Silicon (native) | Not supported — different syscall ABI (XNU) |
 | Linux x86_64 | Not supported — ARM64 instruction set only |
 
+## Sample Output
+
+```
+$ make && ./vamp_shell_lab
+gcc -Wall -Wextra -z execstack -o vamp_shell_lab vamp_shell_lab.c
+
+╔══════════════════════════════════════════════════════╗
+║   VampSecure Labs — Shell Lab v2.0 (ARM64)          ║
+║   Laboratorio educativo de shellcode Linux ARM64     ║
+╚══════════════════════════════════════════════════════╝
+
+Arquitectura objetivo : ARM64 (AArch64) Linux
+Protecciones activas  : NX desactivado por -z execstack (SOLO LAB)
+
+[DEMO 1] Ensamblador inline — instrucciones ARM64 directas en C
+[*] Ejecutando syscall write via __asm__...
+[*] Salida del shellcode: VAMP
+[✓] Syscall completada correctamente.
+
+[DEMO 2] Shellcode como array de bytes — técnica base de inyección
+[*] Región RWX asignada en: 0x7f8a3c0000 (37 bytes)
+[*] Copiando 37 bytes de shellcode...
+[*] Saltando a la región RWX como función...
+[*] Salida del shellcode: VAMP
+[✓] Demo 2 completada. Región liberada con munmap.
+```
+
+```
+$ make asm && ./vamp_msg
+as -o vamp_msg.o vamp_msg.s && ld -o vamp_msg vamp_msg.o
+VAMP
+
+$ objdump -d vamp_msg.o | grep -A 20 "<.text>"
+vamp_msg.o:     file format elf64-littleaarch64
+Disassembly of section .text:
+0000000000000000 <.text>:
+   0: d28000a0  mov  x0, #0x5       // fd = stdout
+   4: 10000061  adr  x1, 10 <msg>  // buf = &msg
+   8: d2800042  mov  x2, #0x5      // count = 5 ("VAMP\n")
+   c: d2800808  mov  x8, #0x40     // NR_write = 64
+  10: d4000001  svc  #0x0
+  14: d2800000  mov  x0, #0x0      // status = 0
+  18: d2800ba8  mov  x8, #0x5d     // NR_exit = 93
+  1c: d4000001  svc  #0x0
+```
+
+## Why vamp-shellcode-lab vs. pwndbg tutorials · shellcode databases · ARM64 exploit dev guides
+
+| Capability | vamp-shellcode-lab | pwndbg tutorials | Shellcode databases | ARM64 exploit guides |
+|------------|--------------------|------------------|---------------------|----------------------|
+| Self-contained compilable code (C + Makefile) | ✅ | ❌ Docs only | ❌ Hex bytes only | ❌ Snippets, no build |
+| Inline ASM + byte array side by side | ✅ Two demos compared | ❌ | ❌ | ❌ |
+| Annotated .s reference (objdump-ready) | ✅ `vamp_msg.s` | ❌ | ❌ Partial | ✅ Varies |
+| Syscall table embedded in source | ✅ 7 syscalls with register layout | ❌ | ✅ External tables | ✅ |
+| Defensive detection notes (ptrace / seccomp / eBPF) | ✅ Inline comments | ✅ pwndbg-specific | ❌ | ❌ |
+| Docker ARM64 on Apple Silicon (no host toolchain) | ✅ `--platform linux/arm64` | ❌ | ❌ | ❌ |
+| No Python / no framework dependency | ✅ C + gcc + binutils only | ❌ needs pwndbg | ❌ | ❌ |
+
+- **Two execution paths** — side-by-side comparison of inline ASM and shellcode-as-bytes in the same run makes the conceptual leap explicit: one is code the compiler embeds, the other is data the program treats as code.
+- **Byte-level traceability** — every byte in the array is commented back to its ARM64 instruction; `objdump` on `vamp_msg.o` lets you verify the extraction yourself without taking anything on faith.
+- **Detection context baked in** — inline notes on `ptrace`, `seccomp`, `auditd`, and `checksec` show which host-side countermeasure catches each technique, turning the lab into a red/blue bridge.
+- **Zero-dependency ARM64 Docker path** — `docker run --platform linux/arm64` on any Apple Silicon Mac; no host toolchain setup required, no emulation quirks.
+
+## Educational Coverage
+
+| Technique | What it demonstrates |
+|-----------|----------------------|
+| AArch64 calling convention | x0–x7 argument registers, x8 syscall number, x29 FP, x30 LR, callee-save x19–x28 |
+| Direct Linux syscall (write + exit) | Syscall numbers 64 and 93; bypassing libc / glibc entirely with `svc #0` |
+| `__asm__ volatile` inline assembler | Embedding ARM64 instructions directly in C without a separate .s translation unit |
+| `mmap(PROT_READ\|PROT_WRITE\|PROT_EXEC)` | Allocating a writable and executable heap region — the canonical RWX shellcode staging technique |
+| Function pointer cast to shellcode | Casting `void *` to `void (*)(void)` and jumping into a byte array — the core injection model |
+| NX / W^X bypass (conceptual) | `-z execstack` disabling GNU stack protection; lab notes explain PXN and why this flag must never appear in production |
+| `objdump` byte extraction pipeline | `as` → `ld` → `objdump -d` to derive the hardcoded byte array from readable assembly |
+| Syscall argument layout (ARM64) | Full register-to-argument mapping for write, read, exit, exit_group, execve, mmap, munmap |
+| Defensive detection surface | `ptrace`, `seccomp` filters, `/proc/PID/maps` inspection, `auditd`, `eBPF` tracepoints, `checksec` output |
+| Cross-compilation / Docker ARM64 | Native build on Graviton / Raspberry Pi or `--platform linux/arm64` container on Apple Silicon |
+
 ## Part of VampSecure Labs Toolkit
 
 This tool is part of the **VampSecure Labs Security Toolkit** — a collection of research-grade security tools for authorized penetration testing and red/blue team exercises.
